@@ -152,7 +152,7 @@ def main():
         file_save_path='plots/swap/MNIST/saved_plots_fedavg/',
         log_save_path='logs/swap/MNIST/saved_logs_fedavg/')
 
-    # ######################## PaLA (Alias FedEx) #################
+    # ######################## PaLA (Alias FedEx) ##################
     # Define drift recovery algorithm related parameters
     drift_recovery_parameters = dict(
         recovery_method=constants.RecoveryAlgorithm.FEDEX,  # Aggregation method used during the drift period
