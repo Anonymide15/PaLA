@@ -114,6 +114,7 @@ The Jupyter notebook files for reading the logs and creating custom-generated pl
 ```
 jupyter_notebooks/
 ```
+Modify the codes to fit your preferences (e.g., logs saving directories, etc.)
 
 ### Documentation and Code explanation
 Please refer to the comments, Doctrings, and explanations in the code base.
