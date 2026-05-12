@@ -61,7 +61,7 @@ def split_to_extractor_and_classifier(_model: nn.Module, _model_params: OrderedD
         # get the classifier parameters (fc2 layer)
         # For simple CNN
         classifier_params = OrderedDict((k, v) for k, v in _model_params.items() if
-                                        (k.startswith("fc1.") or k.startswith("fc2.")))
+                                        (k.startswith("fc2.")))
 
         # For Deep CNNS
         # classifier_params = OrderedDict((k, v) for k, v in _model_params.items() if
@@ -315,97 +315,6 @@ def rapid_train(_model: nn.Module, _dataset: DataLoader, _epochs: int, _batch_si
 
         if _verbose:
             print(f"Train Epoch {epoch + 1}: train loss {epoch_loss}, accuracy {epoch_acc}")
-
-
-# def train(_model: nn.Module, _dataset: DataLoader, _epochs: int, verbose: bool = False) -> None:
-#     """
-#     Train the network on the training set.
-#     :param _model: The model to train
-#     :param _dataset: The dataloader containing training dataset
-#     :param _epochs: The number of epochs to train for
-#     :param verbose: Whether to print training progress
-#     :return: None
-#     """
-#     # # For generic trainng
-#     # criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
-#     #
-#     # _model = _model.to(DEVICE)
-#     #
-#     # optimizer = torch.optim.AdamW(
-#     #     _model.parameters(),
-#     #     lr=3e-4,
-#     #     weight_decay=5e-2
-#     # )
-#     #
-#     # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-#     #     optimizer,
-#     #     T_max=_epochs,
-#     #     eta_min=1e-6
-#     # )
-#     #
-#     # use_amp = torch.cuda.is_available()
-#     # scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
-#
-#     # For CIFAR-10 Boosting
-#     criterion = nn.NLLLoss()
-#     _model = _model.to(DEVICE).float()
-#
-#     optimizer = torch.optim.SGD(
-#         _model.parameters(),
-#         lr=0.01,
-#         momentum=0.9,
-#         weight_decay=5e-4
-#     )
-#
-#     scheduler = torch.optim.lr_scheduler.MultiStepLR(
-#         optimizer,
-#         milestones=[60, 120, 160],
-#         gamma=0.2
-#     )
-#
-#     use_amp = False
-#     scaler = torch.cuda.amp.GradScaler(enabled=False)
-#
-#     for epoch in range(_epochs):
-#         _model.train()
-#
-#         correct = 0
-#         total = 0
-#         epoch_loss = 0.0
-#         num_batches = 0
-#
-#         for _x, _y in _dataset:
-#             inputs = _x.to(DEVICE, non_blocking=True).float()
-#             labels = _y.to(DEVICE, non_blocking=True).long()
-#
-#             optimizer.zero_grad(set_to_none=True)
-#
-#             with torch.cuda.amp.autocast(enabled=use_amp):
-#                 outputs = _model(inputs)
-#                 loss = criterion(outputs, labels)
-#
-#             scaler.scale(loss).backward()
-#             scaler.step(optimizer)
-#             scaler.update()
-#
-#             epoch_loss += loss.item()
-#             num_batches += 1
-#             total += labels.size(0)
-#             correct += (outputs.argmax(dim=1) == labels).sum().item()
-#
-#         scheduler.step()
-#
-#         epoch_loss /= num_batches
-#         epoch_acc = correct / total
-#
-#         if verbose:
-#             current_lr = scheduler.get_last_lr()[0]
-#             print(
-#                 f"Train Epoch {epoch + 1}: "
-#                 f"train loss {epoch_loss:.4f}, "
-#                 f"accuracy {epoch_acc:.4f}, "
-#                 f"lr {current_lr:.6f}"
-#             )
 
 
 def train(_model: nn.Module, _dataset: DataLoader, _epochs: int, verbose=False) -> None:
