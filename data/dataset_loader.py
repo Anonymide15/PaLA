@@ -1,8 +1,5 @@
 """
 Description: This script loads the downloaded the datasets for further processing. It downloads the dataset if needed.
-
-Author:  Anonymous
-Date: 06-08-2024
 Version: 1.0
 """
 import os

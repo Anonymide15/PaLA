@@ -1,7 +1,7 @@
 """
 Description: This file consists the sever side aggregation operations for FedAU algorithm.
 
-Author: Anonymous
+Author: Nisal Hemadasa
 Date: 01-11-2025
 Version: 1.0
 """

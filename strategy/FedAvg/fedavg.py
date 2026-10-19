@@ -1,8 +1,5 @@
 """
 Description: This file consists the Averaging functions for FedAvg algorithm.
-
-Author: Anonymous
-Date: 19-10-2024
 Version: 1.0
 """
 from typing import List, OrderedDict, Dict
@@ -11,6 +8,7 @@ import torch
 from torch import nn
 
 import constants
+from distance_metrics.distance_metrics import compute_euclidean_distance_weights
 from models.utils import set_parameters
 
 
@@ -21,7 +19,7 @@ class FedAvg:
     def aggregate_models(self, server_model: nn.Module, client_model_params_dict: Dict[str, OrderedDict],
                          client_model_params_list: List[OrderedDict] = None) -> None:
         """
-        Aggregate the client models to the global model, using weighted averaging, and returns the new aggregated model.
+        Aggregate client models into the global model using an equal, unweighted parameter average.
         :param server_model: The server (edge or global) model
         :param client_model_params_dict: Dictionary containing the server IDs (keys) and the corresponding state dicts of the client models
         :param client_model_params_list: List of state dicts of the client models (used in the FedAU implementation)
@@ -30,11 +28,14 @@ class FedAvg:
         server_model_params = server_model.state_dict()
 
         if client_model_params_dict is not None:
-            client_model_params_list = list(client_model_params_dict.values())
+            client_model_params_list = client_model_params_dict.values()    #TODO: uncomment after testing
+            client_model_params_list = list(client_model_params_dict.values())  # TODO: testing
+            # model_keys = client_model_params_list[0].keys() # TODO: testing
 
         # Simple averaging of weights
-        updated_server_model_params = server_model_params.copy()
-        for key in updated_server_model_params.keys():
+        updated_server_model_params = server_model_params.copy()  #TODO: uncomment after testing
+        # updated_server_model_params = client_model_params_list[0].copy()    # TODO: testing
+        for key in updated_server_model_params.keys():    #TODO: uncomment after testing
         # for key in model_keys:
             updated_server_model_params[key] = torch.stack(
                 [client_model_params[key].float() for client_model_params in client_model_params_list], 0).mean(0)

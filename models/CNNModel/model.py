@@ -1,9 +1,6 @@
 """
 Description: This file consists a CNN model for image classification, for MNIST and F_MNIST dataset (28 x 28
 dimensional images)
-
-Author: Anonymous
-Date: 02-04-2026
 Version: 1.0
 """
 

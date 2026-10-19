@@ -303,3 +303,104 @@ def getTinyImageNet(
 
     return trainset, testset
 
+#
+# def getTinyImageNet(_dataset_name: str, _transform_tiny_imagenet: Compose, verbose=False) -> tuple[
+#     ImageFolder, ImageFolder]:
+#     """
+#     Loads the Tiny ImageNet-200 dataset. If the dataset is not already downloaded, it downloads and extracts it.
+#     :return: trainset and testset of Tiny ImageNet-200 as torchvision.datasets.ImageFolder objects.
+#     :param _dataset_name: Name of the dataset (should be "tiny-imagenet-200")
+#     :param _transform_tiny_imagenet: Transformations to be applied to the Tiny ImageNet-200 dataset.
+#     :param verbose: If True, prints additional information during dataset loading.
+#     returns:
+#      - trainset: torchvision.datasets.ImageFolder object containing the training data of Tiny ImageNet-200
+#      - testset: torchvision.datasets.ImageFolder object containing the test data of Tiny ImageNet-200
+#     """
+#     file_path = os.path.join(constants.Paths.DATASET, _dataset_name)
+#     files_exist = os.path.exists(file_path)
+#
+#     if not files_exist:
+#         url = "http://cs231n.stanford.edu/tiny-imagenet-200.zip"
+#         zip_path = os.path.join(constants.Paths.DATASET, "tiny-imagenet-200.zip")
+#
+#         if verbose:
+#             print("Downloading Tiny ImageNet-200...")
+#
+#         urllib.request.urlretrieve(url, zip_path)
+#
+#         if verbose:
+#             print("Extracting...")
+#
+#         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+#             zip_ref.extractall(constants.Paths.DATASET)
+#         os.remove(zip_path)
+#
+#     # Load using ImageFolder
+#     train_dir = os.path.join(file_path, "train")
+#     val_dir = os.path.join(file_path, "val")
+#
+#     # Tiny ImageNet validation folder needs restructuring
+#     val_images_dir = os.path.join(val_dir, "images")
+#     val_annotations = os.path.join(val_dir, "val_annotations.txt")
+#
+#     # Fix Tiny ImageNet validation folder structure if needed
+#     if os.path.exists(val_annotations):
+#         with open(val_annotations, "r") as f:
+#             for line in f:
+#                 parts = line.split()
+#                 img = parts[0]
+#                 cls = parts[1]
+#                 img_src = os.path.join(val_images_dir, img)
+#                 cls_dir = os.path.join(val_dir, cls)
+#                 os.makedirs(cls_dir, exist_ok=True)
+#                 img_dst = os.path.join(cls_dir, img)
+#                 if os.path.exists(img_src):
+#                     os.rename(img_src, img_dst)
+#
+#         # Remove original val/images folder
+#         if os.path.exists(val_images_dir):
+#             os.rmdir(val_images_dir)
+#
+#     trainset = ImageFolder(train_dir, transform=_transform_tiny_imagenet)
+#     testset = ImageFolder(val_dir, transform=_transform_tiny_imagenet)
+#
+#     # --------- FAST bulk conversion to .data and .targets using DataLoader ----------
+#     # ---------- tainset -------------
+#     if verbose:
+#         print("Converting Tiny ImageNet trainset to tensors (data, targets)...")
+#
+#     num_workers = min(8, os.cpu_count() or 1)
+#
+#     train_loader = DataLoader(trainset, batch_size=512, shuffle=False, num_workers=num_workers, pin_memory=True)
+#
+#     train_images = []
+#     train_labels = []
+#     for imgs, labels in train_loader:
+#         train_images.append(imgs)
+#         train_labels.append(labels)
+#
+#     trainset.data = torch.cat(train_images, dim=0)  # [N_train, 3, 64, 64]
+#     trainset.targets = torch.cat(train_labels, dim=0)
+#
+#     # ---------- testset -------------
+#     if verbose:
+#         print("Converting Tiny ImageNet testset to tensors (data, targets)...")
+#
+#     test_loader = DataLoader(
+#         testset,
+#         batch_size=512,
+#         shuffle=False,
+#         num_workers=num_workers,
+#         pin_memory=True,
+#     )
+#
+#     test_images = []
+#     test_labels = []
+#     for imgs, labels in test_loader:
+#         test_images.append(imgs)
+#         test_labels.append(labels)
+#
+#     testset.data = torch.cat(test_images, dim=0)  # [N_test, 3, 64, 64]
+#     testset.targets = torch.cat(test_labels, dim=0)  # [N_test]
+#
+#     return trainset, testset

@@ -1,11 +1,10 @@
 """
 Description: This module contains the functions to plot the performance metrics of the federated network.
-
-Author: Anonymous
-Date: 29-04-2025
 Version: 1.0
 """
 from collections import defaultdict, Counter
+import os
+import warnings
 from typing import List, Tuple, Dict
 
 import matplotlib
@@ -300,10 +299,145 @@ def plot_client_layer_distance_vs_rounds(client_layer_distance: List[Dict[int, D
                             file_save_path + constants.Plots.CLIENT_SERVER_LAYER_DISTANCE_VS_ROUNDS_PNG)
 
 
-def configure_and_save_plot(_plt, _x_label, _y_label, _title, _file_path, _legend_handles=None,
-                            _label_rotate=None, _if_grid=None) -> None:
+def annotate_drift_intervals(ax, boundaries, labels=("2", "3"), arrow_y=0.16, label_y=0.12):
     """
-    Add labels, title, legend and save the plot and displays it.
+    Mark intervals between vertical drift boundaries with double-headed arrows.
+    """
+    if len(boundaries) != len(labels) + 1:
+        raise ValueError("Each interval label requires two consecutive boundaries.")
+
+    transform = ax.get_xaxis_transform()
+
+    for left, right, label in zip(boundaries[:-1], boundaries[1:], labels):
+        if right <= left:
+            raise ValueError("Drift boundaries must be strictly increasing.")
+
+        ax.annotate(
+            "",
+            xy=(right, arrow_y),
+            xytext=(left, arrow_y),
+            xycoords=transform,
+            textcoords=transform,
+            arrowprops=dict(
+                arrowstyle="<->",
+                color="black",
+                linewidth=1.2,
+                mutation_scale=12,
+                shrinkA=0,
+                shrinkB=0,
+            ),
+            zorder=6,
+        )
+
+        ax.text(
+            (left + right) / 2,
+            label_y,
+            rf"$T_{{{label}}}$",
+            transform=transform,
+            ha="center",
+            va="top",
+            fontsize=24,
+            color="black",
+            zorder=6,
+        )
+
+
+def annotate_scenario_intervals(
+        ax,
+        boundaries,
+        drift_pattern,
+        *,
+        fade_t1_drift2=False,
+        t1_drift2_alpha=0.15):
+    """
+    Annotate scenario intervals and optionally fade Drift 2 during T1.
+
+    :param ax: Matplotlib axes containing the method curves.
+    :param boundaries: Ordered drift boundaries, including the final round.
+    :param drift_pattern: Selected scenario's sequence of drift identities.
+    :param fade_t1_drift2: Whether to fade Drift 2 inside T1.
+    :param t1_drift2_alpha: Opacity of Drift 2 inside T1, from 0.0 to 1.0.
+    """
+    if not 0.0 <= t1_drift2_alpha <= 1.0:
+        raise ValueError("t1_drift2_alpha must be between 0.0 and 1.0.")
+
+    if drift_pattern == [[1], [1, 2]]:
+        annotate_drift_intervals(ax, boundaries[:2], labels=("1",))
+
+        if not fade_t1_drift2:
+            return
+
+        left, right = boundaries[:2]
+
+        for line in list(ax.lines):
+            if line.get_linestyle() != "-.":
+                continue
+
+            x = list(line.get_xdata())
+            y = list(line.get_ydata())
+
+            if not x or x[-1] < left or x[0] > right:
+                continue
+
+            points = list(zip(x, y))
+
+            for boundary in (left, right):
+                if x[0] < boundary < x[-1] and boundary not in x:
+                    for x0, x1, y0, y1 in zip(x[:-1], x[1:], y[:-1], y[1:]):
+                        if x0 < boundary < x1:
+                            points.append(
+                                (
+                                    boundary,
+                                    y0 + (y1 - y0) *
+                                    (boundary - x0) / (x1 - x0),
+                                )
+                            )
+                            break
+
+            points.sort()
+
+            sections = [
+                ([p for p in points if p[0] <= left], line.get_alpha()),
+                ([p for p in points if left <= p[0] <= right], t1_drift2_alpha),
+                ([p for p in points if p[0] >= right], line.get_alpha()),
+            ]
+
+            for section, alpha in sections:
+                if len(section) < 2:
+                    continue
+
+                ax.plot(
+                    [p[0] for p in section],
+                    [p[1] for p in section],
+                    color=line.get_color(),
+                    linestyle=line.get_linestyle(),
+                    linewidth=line.get_linewidth(),
+                    alpha=alpha,
+                    zorder=line.get_zorder(),
+                    label="_nolegend_",
+                )
+
+            line.remove()
+
+    elif drift_pattern == [[1, 2], [1, 2]]:
+        annotate_drift_intervals(ax, boundaries, labels=("2", "3"))
+
+    elif drift_pattern == [[1, 2], [1, 2], [2, 1]]:
+        for index, label in enumerate(("4", "5", "6")):
+            annotate_drift_intervals(
+                ax,
+                boundaries[index:index + 2],
+                labels=(label,),
+                arrow_y=0.16 if index != 1 else 0.32,
+                label_y=0.12 if index != 1 else 0.28,
+            )
+
+
+def configure_and_save_plot(_plt, _x_label, _y_label, _title, _file_path, _legend_handles=None,
+                            _label_rotate=None, _if_grid=None, plot_formats=('png', 'pdf', 'pgf'),
+                            pgf_strict=False) -> None:
+    """
+    Configure and save the plot, then close it. PGF export requires a working LaTeX installation.
     :param _plt: The matplotlib pyplot object.
     :param _x_label: The label for the x - axis.
     :param _y_label: The label for the y - axis.
@@ -312,8 +446,14 @@ def configure_and_save_plot(_plt, _x_label, _y_label, _title, _file_path, _legen
     :param _legend_handles: The legend handles to be displayed.
     :param _label_rotate: Rotation angle for x-axis labels.
     :param _if_grid: Boolean to indicate whether to show grid or not.
+    :param plot_formats: Output formats to save: png, pdf, and/or pgf.
+    :param pgf_strict: Whether a PGF export failure should raise instead of warning.
     :return: None
     """
+    plot_formats = tuple(plot_formats)
+    if not plot_formats or any(plot_format not in ('png', 'pdf', 'pgf') for plot_format in plot_formats):
+        raise ValueError("plot_formats must contain png, pdf, and/or pgf.")
+
     _plt.xlabel(_x_label)
     _plt.ylabel(_y_label)
     # _plt.title(_title)
@@ -328,21 +468,28 @@ def configure_and_save_plot(_plt, _x_label, _y_label, _title, _file_path, _legen
         _plt.xticks(rotation=_label_rotate, ha='right')  # test is horizontally aligned to right
         _plt.tight_layout()  # Automatically adjusts subplot margins so labels fit inside the figure.
 
-    # Save the plot as a high-quality PNG
-    png_path = f"{_file_path}.png"
-    _plt.savefig(png_path, dpi=300)  # Increase DPI for higher resolution
+    try:
+        save_dir = os.path.dirname(_file_path)
+        if save_dir:
+            os.makedirs(save_dir, exist_ok=True)
 
-    # Save the plot as a PDF
-    pdf_path = f"{_file_path}.pdf"
-    _plt.savefig(pdf_path, format="pdf")
-    #
-    # # Save PGF (LaTeX-friendly vector format)
-    # pgf_path = f"{_file_path}.pgf"
-    # _plt.savefig(pgf_path, format="pgf")
-
-    # Display the plot
-    # _plt.show()
-    _plt.close()
+        # Save PNG/PDF first so a missing LaTeX installation cannot prevent their export.
+        if 'png' in plot_formats:
+            _plt.savefig(f"{_file_path}.png", dpi=300)
+        if 'pdf' in plot_formats:
+            _plt.savefig(f"{_file_path}.pdf", format="pdf")
+        if 'pgf' in plot_formats:
+            pgf_path = f"{_file_path}.pgf"
+            try:
+                _plt.savefig(pgf_path, format="pgf")
+            except Exception as exc:
+                if pgf_strict:
+                    raise
+                warnings.warn(f"PGF export failed for {pgf_path}: {exc}. "
+                              "Check that the LaTeX engine selected by Matplotlib's pgf.texsystem "
+                              "is installed and available on PATH.", RuntimeWarning, stacklevel=2)
+    finally:
+        _plt.close()
 
 
 def plot_dataset_distribution(clients_list: List[Client], _dataset_name: str,

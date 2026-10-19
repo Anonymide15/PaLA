@@ -1,123 +1,84 @@
-## PaLA: Partial Layer Aggregation for Client-Group Distributed Drift Adaptation
+# PaLA: Partial Layer Aggregation
 
-This repository contains the implementation used for the experiments of **Partial Layer Aggregation (PaLA)**, a clustering-free federated learning strategy for adapting to client-group distributed concept drift.
+### Installation
 
-PaLA shares transferable feature-extraction layers through federated aggregation while keeping client-specific classifier layers local. The goal is to reduce cross-group interference under drift while avoiding the overhead of maintaining multiple global models.
-
-### Naming Note
-
-In the codebase, `FEDEX` is used as an internal alias for **PaLA**. Both refer to the same method: Partial Layer Aggregation, which aggregates shared extractor layers while keeping classifier layers local.
-
-### Repository Structure
-
-```text
-.
-├── data/                    # Dataset-related files and local data storage
-├── distance\_metrics/         # Distance and similarity metric utilities
-├── drift\_concepts/           # Drift concept definitions and drift schedules
-├── federated\_network/        # Federated learning client/server simulation logic
-├── jupyter\_notebooks/        # Analysis and plotting notebooks
-├── log\_utils/                # Logging utilities
-├── models/                   # Neural network model definitions
-├── plot\_utils/               # Plotting and visualization utilities
-├── strategy/                 # Federated learning strategies, including PaLA, FedAvg, Oracle
-├── constants.py              # Global constants and configuration values
-├── main.py                   # Main experiment entry point. Includes mainly: (1)drift scenario design,
-|                                                                             (2)Federated network systems configuration parameters
-|                                                                             (3)Simulation parameters
-|                                                                             (4)Ablation experiments (commented)
-|
-├── requirements.txt          # Python dependencies
-└── README.md
-```
-
-### Dependencies
-
-The code has been tested with **Python 3.10** and **Python 3.12**.
-
-Install the required Python dependencies with:
- ```bash
-pip install -r requirements.txt
-```
-
-### Ubuntu System Dependencies
-
-On Ubuntu, the following system packages may be required:
+Use Python 3.10 or newer and create a virtual environment:
 
 ```bash
-sudo apt-get install -y libx11-dev python3-tk tk-dev
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
 ```
 
-<em>
-(Package versions in detail, only if required) 
-The following package versions were used on Windows with Python 3.10:
+Install PyTorch and TorchVision using the command for your platform from the [official PyTorch installation selector](https://pytorch.org/get-started/locally/). This lets you choose the appropriate CPU or CUDA build. Then install the remaining project dependencies:
 
-contourpy==1.3.2
-cycler==0.12.1
-filelock==3.29.0
-fonttools==4.62.1
-fsspec==2026.4.0
-jinja2==3.1.6
-kiwisolver==1.5.0
-markupsafe==3.0.3
-matplotlib==3.10.9
-mpmath==1.3.0
-networkx==3.4.2
-numpy==2.2.6
-packaging==26.2
-pillow==12.2.0
-pyparsing==3.3.2
-python-dateutil==2.9.0.post0
-scipy==1.15.3
-setuptools==81.0.0
-six==1.17.0
-sympy==1.14.0
-torch==2.11.0
-torchvision==0.26.0
-typing-extensions==4.15.0
-joblib==1.5.3
-scikit-learn==1.7.2
-threadpoolctl==3.6.0
-certifi==2026.4.22
-pandas==2.3.3
-pytz==2026.2
-tzdata==2026.2
-ucimlrepo==0.0.7
-</em>
-
-### Running Experiments
-
-The main entry point is:
 ```bash
-python main.py
+python -m pip install -r requirements.txt
 ```
 
-### Output logs 
-Depending on the experiment configuration, logs and generated outputs may be written to the corresponding logging or output directories.
+On Debian or Ubuntu, the following system packages are optional. Tk is only needed for interactive plotting; a LaTeX engine such as XeLaTeX is needed only to export PGF plots.
 
-#### Logging Directory
-Logs are stored in:
+```bash
+sudo apt-get install libx11-dev python3-tk tk-dev
 ```
-logs/
-```
-(The users can newly create/ edit or create sub-directories to fit the requirements in the code)
 
-#### Plotting and Analysis
-Plots are saved in:
-```
-plots/
-```
-(The users can newly create/ edit or create sub-directories to fit the requirements in the code)
 
-#### Read logs
-The Jupyter notebook files for reading the logs and creating custom-generated plots are in notebooks located in:
-```
-jupyter_notebooks/
-```
-Modify the codes to fit your preferences (e.g., logs saving directories, etc.)
+### Running and device selection
 
-### Documentation and Code explanation
-Please refer to the comments, Doctrings, and explanations in the code base.
+Run the simulation with `python main.py`. The default path in `main()` requires CUDA and raises an error if CUDA is unavailable. The CIFAR-10 rotation comparison and rotation L-ablation branches explicitly use CPU; the other special branches use CUDA. To change the device, update the relevant `configure_device(...)` call in `main.py`.
 
-### License
-This repository is licensed under the Apache License 2.0. See the LICENSE file for details.
+The four top-level experiment switches in `main.py` are all disabled by default. With them unchanged, execution falls through to the legacy experiment block, which constructs multiple networks sequentially (beginning with Tiny ImageNet-200, 10 IID clients, 0 non-IID clients, and 20 training rounds). All `run_simulation(...)` calls in that block are currently commented out except the FedEx CIFAR-10 alpha sweep, which constructs a 10-client network for each alpha and runs 400 rounds. Commenting out a simulation call does not prevent its network constructor from loading data and creating clients/servers.
+
+The switches enable the CIFAR-10 FedEx shared-layer ablation, the CIFAR-10 Scenario B rotation comparison, the CIFAR-10 rotation L-ablation, and the FedEx L=1 label-swap matrix. The matrix currently lists Fashion-MNIST and Scenario B. Each early-dispatch switch returns after its experiment.
+
+Datasets are loaded from `datasets/`. MNIST, Fashion-MNIST, CIFAR-10, and CIFAR-100 use TorchVision download support when data is missing; Adult data is fetched through `ucimlrepo`, and Tiny ImageNet uses the repository's custom loader. These downloads require network access on first use.
+
+For programmatic use, call `device_utils.configure_device('auto'|'cpu'|'cuda')` once before constructing clients, servers, or optimizers. Auto mode selects CUDA when available and otherwise CPU; explicitly requesting unavailable CUDA raises an error. Modules use `get_device()` for placement. Changing the setting does not migrate existing models or optimizer state. The requested device, resolved device, and PyTorch version are printed at selection.
+
+Training uses the configured optimizer, loss, scheduler, and epoch/batch settings. CPU and GPU runs may produce different numerical results.
+
+No automated test suite is currently included in this repository. To check that the application imports after installing the dependencies, run `python -c "import main; print('main import: OK')"` from the repository root. Starting `python main.py` launches the configured experiment path and may download datasets or require CUDA.
+
+### Plot export
+
+The shared `configure_and_save_plot()` function saves PNG (300 DPI), PDF, and PGF files and creates missing output directories. Existing plotting calls enable all three formats automatically.
+
+PGF export requires a working LaTeX installation with the engine selected by Matplotlib's `pgf.texsystem` available on `PATH` (normally `xelatex`). Include a successful export in a LaTeX document using `\usepackage{pgf}` and `\input{path/to/plot.pgf}`.
+
+If PGF export fails, the function warns with the output path and cause while retaining PNG/PDF output. A failed export may leave an incomplete PGF file; use it only after a successful export. PNG/PDF errors still propagate. Direct callers can pass `plot_formats=('png', 'pdf')` to skip PGF or `pgf_strict=True` to raise on PGF failures. Figures are closed after export, including when saving fails.
+
+### FedEx shared-layer ablation notation
+
+In this code, `L` is the number of model layers shared and aggregated by FedEx. The paper uses `L` for the number of layers kept local, which is `n - L` in this code, where `n` is the model's total number of layers. For example, the CIFAR-10 CNN here has four named layers (`conv1`, `conv2`, `fc1`, and `fc2`), so code `L=1` means one shared layer and three local layers; this corresponds to `L=3` in the paper.
+
+### Model-distance diagnostics
+
+Each aggregation records Euclidean (L2) distances after server aggregation and before model distribution. Whole-model L2 is computed as the square root of the summed squared differences across all state tensors; per-tensor distances are retained separately. Integer buffers are safely converted for comparison.
+
+The current run's canonical structure is available as `fed_net.model_distance_history`. Its records are keyed by round, phase, leaf server, model identity, and client. Each client record contains the whole-model distance, layer distances, participation status, and last local-update round. `client_distances()` provides a compact primary-model mapping intended for future FedEx optimization.
+
+Set `model_distance_logging_enabled=False` in `simulation_parameters` to disable collection, or set `model_distance_interval=N` to collect every N aggregation rounds. Defaults are enabled and every round. Completed runs write `model_distances_log.pkl` and `layer_distances_log.pkl` under `log_save_path`. FedRC records each corresponding cluster model separately.
+
+### Evaluation
+
+`client_log.pkl` continues to contain post-training metrics for each client's local model. Configure an additional structured evaluation stage with `client_evaluation_stage` in `simulation_parameters`:
+
+- `local_before_download`: evaluate local client models before server aggregation/distribution.
+- `global_after_download`: evaluate each client's assigned leaf-server model after distribution and before local training, without overwriting the client model.
+- `local_after_training`: evaluate local client models after local training; this is the default.
+
+Completed runs write the selected stage to `evaluation_log.pkl`. Global/downloaded-model runs also write `downloaded_global_client_log.pkl`. These records include client and assigned-server identity, model role, participation status, loss, and accuracy.
+
+Set `drifted_class_metrics_enabled=True` to include label-swap class-subset loss, accuracy, and sample counts in `drifted_class_log.pkl`. Rotation-only drift produces an empty class set and zero matching samples. `server_metric_weighting` controls client-derived server metrics: use `uniform` (default) or `train_samples`. This affects reported server metrics only, not aggregation.
+
+### Implemented strategies
+
+`constants.RecoveryAlgorithm` includes FedAvg, FedAU, FedEx, FedRC, Oracle, FLUID, RRT, Ditto, FairFedDrift, and FedBABU. The strategy packages currently include FedAvg, FedAU, FedEx, FedRC, Oracle, Ditto, FairFedDrift, and FedBABU; FLUID and RRT use the framework's existing client/server paths. Support and constraints vary by method, so check the strategy configuration and validation in `federated_network/server.py` and `federated_network/network.py` before combining methods or server layouts.
+
+### Ditto integration
+
+Ditto currently supports fixed-lambda personalized training with full client participation and a single server level. Each client keeps `client.model` for upload/aggregation and a persistent `client.ditto_personal_model` for personalization. Ditto global aggregation is weighted by local sample count; existing FedAvg aggregation remains uniform.
+
+`client_log.pkl` continues to describe `client.model`. When `ditto_eval_personalized=True`, personalized metrics are evaluated after local training and written separately to `ditto_personalized_client_log.pkl`. With `drifted_class_metrics_enabled=True`, personalized label-drift subset metrics are written to `ditto_personalized_drifted_class_log.pkl`. `ditto_state_log.pkl` records the resolved configuration and model-role metadata.
+
+Set `ditto_dynamic_lambda=True` to reserve a persistent seeded validation partition for each client and select among `ditto_lambda_candidates` after comparable candidate updates. Training never uses the held-out validation indices. Per-round, per-client candidate losses and selected values are written to `ditto_selected_lambda_log.pkl`.

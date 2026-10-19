@@ -1,8 +1,5 @@
 """
 Description: This file consists a simple MLP for image classification.
-
-Author: Anonymous
-Date: 02-04-2026
 Version: 1.0
 """
 import torch.nn as nn

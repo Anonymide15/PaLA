@@ -1,8 +1,5 @@
 """
 Description: This module contains the functions to analyse the log data.
-
-Author: Anonymous
-Date: 10-01-2025
 Version: 1.0
 """
 
@@ -182,6 +179,7 @@ def convert_fedrc_metrics_to_pairs(data: List[List[List[Tuple[List[float], List[
     """
     cluster_metrics = dict((cluster_idx, []) for cluster_idx in range(num_fedrc_clusters))
 
+    # TODO: simplify this. Make this more meaningful. this is a quick and dirty solution.
     for epoch_data in data:
         cluster_epoch_metric = [[] for _ in range(num_fedrc_clusters)]
         for client_idx, client_metrics in enumerate(epoch_data): # here, len(epoch_data) = num_clients

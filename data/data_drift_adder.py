@@ -1,8 +1,5 @@
 """
 Description: This script injects different types of drift to the data (and creates data with drift).
-
-Author: Anonymous
-Date: 17-09-2024
 Version: 1.0
 """
 import numpy as np

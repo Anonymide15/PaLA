@@ -1,9 +1,6 @@
 """
 Description: This file consists a simple CNN for image classification, for CIFAR 10/CIFAR 100 dataset (32 x 32
 dimensional images) in 3 channels
-
-Author: Anonymous
-Date: 02-04-2026
 Version: 1.0
 """
 

@@ -1,8 +1,5 @@
 """
 Description: This file consists supporting functions for Oracle (clustering based multi-global model) algorithm.
-
-Author: Anonymous
-Date: 08-01-2026
 Version: 1.0
 """
 from typing import List, Dict, OrderedDict
@@ -12,11 +9,6 @@ from torch import nn
 
 import constants
 from strategy.FedAvg import FedAvg
-
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # Try "cuda" to train on GPU
-print(
-    f"Training on {DEVICE} using PyTorch {torch.__version__}"
-)
 
 
 class Oracle:

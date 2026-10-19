@@ -1,8 +1,5 @@
 """
 Description: This module defines feedforward neural network models for image classification using PyTorch.
-
-Author: Anonymous
-Date: 04-04-2025
 Version: 2.0
 """
 from abc import ABC, abstractmethod
@@ -18,40 +15,64 @@ import constants
 from models import SimpleModel, CNNModel, CNNCIFAR10, CNNCIFAR100, TabularAdultModel, ConvNeXtTinyImageNet
 from models.CNNCIFAR100.model import ResNet18CIFAR100, ShallowResNetCIFAR100
 
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # Try "cuda" to train on GPU
-print(
-    f"Training on {DEVICE} using PyTorch {torch.__version__}"
-)
+from device_utils import get_device
 
 
-def split_to_extractor_and_classifier(_model: nn.Module, _model_params: OrderedDict, model_type: str) -> tuple[
+def split_to_extractor_and_classifier(_model: nn.Module, _model_params: OrderedDict, model_type: str,
+                                     shared_layer_count: int = None) -> tuple[
     OrderedDict, OrderedDict]:
     """
     Split the model/model parameters into feature extractor and classifier parts. The feature extractor includes all layers except the
     final fully connected layer (fc2), while the classifier includes only the final fully connected layer.
     :param _model: The model to split
     :param _model_params: The model parameters to split
+    :param model_type: Model type used to select the default split behavior
+    :param shared_layer_count: Optional count of leading learned layers to return as shared parameters
     :return: A tuple containing two OrderedDicts: (parameters of the feature extractor, parameters of the classifier)
     """
     if _model is not None:
         _model_params = _model.state_dict()
 
+    if shared_layer_count is not None:
+        if model_type == constants.ModelTypes.CNN_CIFAR_10:
+            layer_prefixes = ("conv1.", "conv2.", "fc1.", "fc2.")
+        elif model_type == constants.ModelTypes.CNN_MODEL:
+            layer_prefixes = ("conv1.", "fc1.", "fc2.")
+        else:
+            raise ValueError("shared_layer_count is supported only for the MNIST/Fashion-MNIST and CIFAR-10 CNN models.")
+        if (isinstance(shared_layer_count, bool) or not isinstance(shared_layer_count, int) or
+                not 1 <= shared_layer_count <= len(layer_prefixes)):
+            raise ValueError(f"shared_layer_count must be an integer from 1 through {len(layer_prefixes)}.")
+
+        selected_prefixes = layer_prefixes[:shared_layer_count]
+        extractor_params = OrderedDict(
+            (key, value) for key, value in _model_params.items()
+            if key.startswith(selected_prefixes)
+        )
+        classifier_params = OrderedDict(
+            (key, value) for key, value in _model_params.items()
+            if not key.startswith(selected_prefixes)
+        )
+        if not extractor_params:
+            raise ValueError("No CIFAR-10 model parameters matched the selected shared layers.")
+        return extractor_params, classifier_params
+
     # get the extractor parameters (all except fc2 and fc1 layer)
     if model_type is not constants.ModelTypes.CONVNET_TINY_IMAGENET:
-        # For simple CNNs
-        extractor_params = OrderedDict((k, v) for k, v in _model_params.items() if
-                                       not (k.startswith("fc1.") or k.startswith("fc2.") or k.startswith('conv2')))
-
         # For Deep CNNS
-        # classifier_params = OrderedDict((k, v) for k, v in _model_params.items() if
-        #                                 k.startswith("fc1.") or k.startswith("fc2.") or k.startswith("fc3.") or k.startswith("fc4."))
+        classifier_params = OrderedDict((k, v) for k, v in _model_params.items() if
+                                        k.startswith("fc1.") or k.startswith("fc2.") or k.startswith("fc3.") or k.startswith("fc4."))
         # classifier_params = OrderedDict((k, v) for k, v in _model_params.items() if
         #                                 k.startswith("fc4.") )
 
-        # For ResNet like
+        # For simple CNNs
         # extractor_params = OrderedDict((k, v) for k, v in _model_params.items() if
-        #                                not (k.startswith("fc1.") or k.startswith("fc2.") or
-        #                                     k.startswith("layer4.") or k.startswith("layer3.")))
+        #                                not (k.startswith("fc1.") or k.startswith("fc2.") or k.startswith('conv2')))
+
+        # For ResNet like
+        extractor_params = OrderedDict((k, v) for k, v in _model_params.items() if
+                                       not (k.startswith("fc1.") or k.startswith("fc2.") or
+                                            k.startswith("layer4.") or k.startswith("layer3.")))
     else:
         # For Tiny ImageNet200 model
         extractor_params = OrderedDict((k, v) for k, v in _model_params.items() if
@@ -59,13 +80,10 @@ def split_to_extractor_and_classifier(_model: nn.Module, _model_params: OrderedD
 
     if model_type is not constants.ModelTypes.CONVNET_TINY_IMAGENET:
         # get the classifier parameters (fc2 layer)
-        # For simple CNN
-        classifier_params = OrderedDict((k, v) for k, v in _model_params.items() if
-                                        (k.startswith("fc2.")))
 
         # For Deep CNNS
-        # classifier_params = OrderedDict((k, v) for k, v in _model_params.items() if
-        #                                 k.startswith("fc1.") or k.startswith("fc2.") or k.startswith("fc3.") or k.startswith("fc4."))
+        classifier_params = OrderedDict((k, v) for k, v in _model_params.items() if
+                                        k.startswith("fc1.") or k.startswith("fc2.") or k.startswith("fc3.") or k.startswith("fc4."))
         # classifier_params = OrderedDict((k, v) for k, v in _model_params.items() if
         #                                 k.startswith("fc4.") )
 
@@ -73,6 +91,9 @@ def split_to_extractor_and_classifier(_model: nn.Module, _model_params: OrderedD
         # classifier_params = OrderedDict((k, v) for k, v in _model_params.items() if
         #                                 k.startswith("fc2.") or k.startswith("layer4.") or k.startswith("layer3."))
 
+        # For simple CNN
+        # classifier_params = OrderedDict((k, v) for k, v in _model_params.items() if
+        #                                 (k.startswith("fc1.") or k.startswith("fc2.")))
     else:
         # For Tiny ImageNet200 model
         classifier_params = OrderedDict((k, v) for k, v in _model_params.items() if k.startswith("head."))
@@ -84,9 +105,9 @@ def fedau_clientside_train(_model: nn.Module, _dataset: DataLoader, _aux_dataset
                            _server_model_params: OrderedDict, _drifted_client_indices: List[int], _client_id,
                            _epochs: int, _mini_batch_size: int) -> OrderedDict:
     """
-    Performs clients dei training operations of the FedAU algorithm, following [2]. 
+    Performs clients dei training operations of the FedAU algorithm, following [2].
     This includes training the (1) learning module and (2) auxiliary module
-    
+
     [2] Implementation of FedAU algorithm following the paper: [2]H. Gu, G. Zhu, J. Zhang, X. Zhao, Y. Han, L. Fan and
     Q. Yang, “Unlearning during Learning: An Efficient Federated Machine Unlearning Method,” in
     Proceedings of the 33rd International Joint Conference on Artificial Intelligence (IJCAI-24)
@@ -103,7 +124,7 @@ def fedau_clientside_train(_model: nn.Module, _dataset: DataLoader, _aux_dataset
     # FedAU: Learning module training
     learning_model_train(_model, _dataset, _server_model_params, _epochs=_epochs)
 
-    # FedAU: Auxiliary module training, only for drifted clients
+    # FedAU: Auxiliary module training, only for drifted clients #TODO: implement: drift detection/trusted clients
     if _client_id in _drifted_client_indices:
         return auxiliary_model_train(_model, _aux_dataset, _server_model_params, _epochs=_epochs,
                                      _batch_size=_mini_batch_size)
@@ -145,18 +166,18 @@ def auxiliary_model_train(_model: nn.Module, _aux_dataset: DataLoader, _server_m
     # Initialize the auxiliary model (similar to learning module architecture)
     model_type = _model.get_model_type()
     if model_type == constants.ModelTypes.CNN_MODEL:
-        aux_model = CNNModel().to(DEVICE)
+        aux_model = CNNModel().to(get_device())
     elif model_type == constants.ModelTypes.CNN_CIFAR_10:
-        aux_model = CNNCIFAR10().to(DEVICE)
+        aux_model = CNNCIFAR10().to(get_device())
     elif model_type == constants.ModelTypes.CNN_CIFAR_100:
-        # aux_model = ShallowResNetCIFAR100().to(DEVICE)
-        aux_model = ResNet18CIFAR100().to(DEVICE)
-        # aux_model = CNNCIFAR100().to(DEVICE)
+        # aux_model = ShallowResNetCIFAR100().to(get_device())
+        aux_model = ResNet18CIFAR100().to(get_device())
+        # aux_model = CNNCIFAR100().to(get_device())
     elif model_type == constants.ModelTypes.CNN_TINY_IMAGENET:
-        aux_model = ConvNeXtTinyImageNet.to(DEVICE)
+        aux_model = ConvNeXtTinyImageNet.to(get_device())
     elif model_type == constants.ModelTypes.TABULAR_ADULT:
         # New branch for TabularAdultModel
-        aux_model = TabularAdultModel().to(DEVICE)
+        aux_model = TabularAdultModel().to(get_device())
     else:
         raise ValueError(f"Unsupported model type for auxiliary model training: {model_type}")
 
@@ -242,7 +263,7 @@ def rapid_train(_model: nn.Module, _dataset: DataLoader, _epochs: int, _batch_si
 
     criterion = nn.CrossEntropyLoss()
 
-    _model = _model.to(DEVICE)
+    _model = _model.to(get_device())
     _model.train()
     for epoch in range(_epochs):
         correct, total, epoch_loss = 0, 0, 0.0
@@ -266,8 +287,8 @@ def rapid_train(_model: nn.Module, _dataset: DataLoader, _epochs: int, _batch_si
             inputs = _x
             labels = _y
 
-            inputs = inputs.to(DEVICE)  # move inputs to device
-            labels = labels.to(DEVICE)  # move labels to device
+            inputs = inputs.to(get_device())  # move inputs to device
+            labels = labels.to(get_device())  # move labels to device
 
             # Clear gradients for each batch
             _model.zero_grad()
@@ -317,69 +338,172 @@ def rapid_train(_model: nn.Module, _dataset: DataLoader, _epochs: int, _batch_si
             print(f"Train Epoch {epoch + 1}: train loss {epoch_loss}, accuracy {epoch_acc}")
 
 
-def train(_model: nn.Module, _dataset: DataLoader, _epochs: int, verbose=False) -> None:
+def train(_model: nn.Module, _dataset: DataLoader, _epochs: int, verbose: bool = False,
+          _optimizer_parameters: List[nn.Parameter] = None,
+          _learning_rate: float = constants.TrainingHyperparameters.CLIENT_LEARNING_RATE,
+          _momentum: float = 0.9, _weight_decay: float = 5e-4,
+          _frozen_modules: List[nn.Module] = None) -> None:
     """
     Train the network on the training set.
     :param _model: The model to train
     :param _dataset: The dataloader containing training dataset
     :param _epochs: The number of epochs to train for
     :param verbose: Whether to print training progress
+    :param _optimizer_parameters: Optional parameter subset for the SGD optimizer.
+    :param _learning_rate: SGD learning rate; defaults preserve existing callers.
+    :param _momentum: SGD momentum; defaults preserve existing callers.
+    :param _weight_decay: SGD weight decay; defaults preserve existing callers.
+    :param _frozen_modules: Optional modules placed in evaluation mode each epoch.
     :return: None
     """
-    # criterion = nn.BCEWithLogitsLoss()
-    # criterion = nn.BCELoss()
-    criterion = nn.CrossEntropyLoss()
-    _optimizer = torch.optim.Adam(_model.parameters(), lr=0.001)
+    # # For generic trainng
+    # criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
+    #
+    # _model = _model.to(get_device())
+    #
+    # optimizer = torch.optim.AdamW(
+    #     _model.parameters(),
+    #     lr=3e-4,
+    #     weight_decay=5e-2
+    # )
+    #
+    # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+    #     optimizer,
+    #     T_max=_epochs,
+    #     eta_min=1e-6
+    # )
+    #
+    # use_amp = torch.cuda.is_available()
+    # scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
 
-    _model = _model.to(DEVICE)
-    _model.train()
+    # For CIFAR-10 Boosting
+    criterion = nn.NLLLoss()
+    _model = _model.to(get_device()).float()
+
+    optimizer_parameters = (list(_model.parameters()) if _optimizer_parameters is None
+                            else list(_optimizer_parameters))
+    if not optimizer_parameters:
+        raise ValueError("Training requires at least one optimizer parameter.")
+    frozen_modules = [] if _frozen_modules is None else list(_frozen_modules)
+    if any(not isinstance(module, nn.Module) for module in frozen_modules):
+        raise ValueError("Frozen training modules must be PyTorch modules.")
+
+    optimizer = torch.optim.SGD(optimizer_parameters, lr=_learning_rate, momentum=_momentum,
+                                weight_decay=_weight_decay)
+
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(
+        optimizer,
+        milestones=[60, 120, 160],
+        gamma=0.2
+    )
+
+    # Training remains full precision on both CPU and CUDA (AMP was previously disabled).
 
     for epoch in range(_epochs):
-        correct, total, epoch_loss = 0, 0, 0.0
-        # this loop is added because _dataset is dictionary like and torch.from_numpy() expects only Dataloader types.
-        # Also takes batches of data from the dataset and trains the model
+        _model.train()
+        for module in frozen_modules:
+            module.eval()
 
-        # Define the maximum number of batches to use per epoch
-        max_batches_per_epoch = 10
+        correct = 0
+        total = 0
+        epoch_loss = 0.0
+        num_batches = 0
 
-        # Limit the loop to a fixed number of batches
-        for batch_idx, (_x, _y) in enumerate(_dataset):
-            if batch_idx >= max_batches_per_epoch:
-                break
+        for _x, _y in _dataset:
+            inputs = _x.to(get_device(), non_blocking=True).float()
+            labels = _y.to(get_device(), non_blocking=True).long()
 
-            # inputs = _x.unsqueeze(1).float()  # Ensure images are in the right format and shape to feed to the model
-            inputs = _x
-            labels = _y
+            optimizer.zero_grad(set_to_none=True)
 
-            inputs = inputs.to(DEVICE)  # move inputs to device
-            labels = labels.to(DEVICE)  # move labels to device
-
-            # Clear gradients for each batch
-            _optimizer.zero_grad()
-
-            # Forward pass
             outputs = _model(inputs)
+            loss = criterion(outputs, labels)
 
-            # Calculate loss
-            try:
-                _loss = criterion(outputs, labels)
-            except Exception as e:
-                print(f"Error calculating loss: {e}")
-                continue
+            loss.backward()
+            optimizer.step()
 
-            # Backward pass and optimization
-            _loss.backward()
-            _optimizer.step()
-
-            # Metrics
-            epoch_loss += _loss.item()
+            epoch_loss += loss.item()
+            num_batches += 1
             total += labels.size(0)
-            correct += (torch.max(outputs.data, 1)[1] == labels).sum().item()
+            correct += (outputs.argmax(dim=1) == labels).sum().item()
 
-        epoch_loss /= len(_dataset)
+        scheduler.step()
+
+        epoch_loss /= num_batches
         epoch_acc = correct / total
+
         if verbose:
-            print(f"Train Epoch {epoch + 1}: train loss {epoch_loss}, accuracy {epoch_acc}")
+            current_lr = scheduler.get_last_lr()[0]
+            print(
+                f"Train Epoch {epoch + 1}: "
+                f"train loss {epoch_loss:.4f}, "
+                f"accuracy {epoch_acc:.4f}, "
+                f"lr {current_lr:.6f}"
+            )
+
+
+# def train(_model: nn.Module, _dataset: DataLoader, _epochs: int, verbose=False) -> None:
+#     """
+#     Train the network on the training set.
+#     :param _model: The model to train
+#     :param _dataset: The dataloader containing training dataset
+#     :param _epochs: The number of epochs to train for
+#     :param verbose: Whether to print training progress
+#     :return: None
+#     """
+#     # criterion = nn.BCEWithLogitsLoss()
+#     # criterion = nn.BCELoss()
+#     criterion = nn.CrossEntropyLoss()
+#     _optimizer = torch.optim.Adam(_model.parameters(), lr=0.001)
+#
+#     _model = _model.to(get_device())
+#     _model.train()
+#
+#     for epoch in range(_epochs):
+#         correct, total, epoch_loss = 0, 0, 0.0
+#         # this loop is added because _dataset is dictionary like and torch.from_numpy() expects only Dataloader types.
+#         # Also takes batches of data from the dataset and trains the model
+#
+#         # Define the maximum number of batches to use per epoch
+#         max_batches_per_epoch = 10
+#
+#         # Limit the loop to a fixed number of batches
+#         for batch_idx, (_x, _y) in enumerate(_dataset):
+#             if batch_idx >= max_batches_per_epoch:
+#                 break
+#
+#             # inputs = _x.unsqueeze(1).float()  # Ensure images are in the right format and shape to feed to the model
+#             inputs = _x
+#             labels = _y
+#
+#             inputs = inputs.to(get_device())  # move inputs to device
+#             labels = labels.to(get_device())  # move labels to device
+#
+#             # Clear gradients for each batch
+#             _optimizer.zero_grad()
+#
+#             # Forward pass
+#             outputs = _model(inputs)
+#
+#             # Calculate loss
+#             try:
+#                 _loss = criterion(outputs, labels)
+#             except Exception as e:
+#                 print(f"Error calculating loss: {e}")
+#                 continue
+#
+#             # Backward pass and optimization
+#             _loss.backward()
+#             _optimizer.step()
+#
+#             # Metrics
+#             epoch_loss += _loss.item()
+#             total += labels.size(0)
+#             correct += (torch.max(outputs.data, 1)[1] == labels).sum().item()
+#
+#         epoch_loss /= len(_dataset)
+#         epoch_acc = correct / total
+#         if verbose:
+#             print(f"Train Epoch {epoch + 1}: train loss {epoch_loss}, accuracy {epoch_acc}")
 
 
 def test(_model: nn.Module, _dataset: DataLoader) -> tuple[float, float]:
@@ -393,7 +517,8 @@ def test(_model: nn.Module, _dataset: DataLoader) -> tuple[float, float]:
     criterion = nn.CrossEntropyLoss()
     correct, total, loss = 0, 0, 0.0
 
-    _model = _model.to(DEVICE)
+    _model = _model.to(get_device())
+    was_training = _model.training
     _model.eval()
 
     with torch.no_grad():
@@ -403,8 +528,8 @@ def test(_model: nn.Module, _dataset: DataLoader) -> tuple[float, float]:
             inputs = _x
             labels = _y
 
-            inputs = inputs.to(DEVICE)  # move inputs to device
-            labels = labels.to(DEVICE)  # move labels to device
+            inputs = inputs.to(get_device())  # move inputs to device
+            labels = labels.to(get_device())  # move labels to device
 
             # forward pass
             outputs = _model(inputs)
@@ -418,9 +543,53 @@ def test(_model: nn.Module, _dataset: DataLoader) -> tuple[float, float]:
             correct += (predicted == labels).sum().item()
 
     # average loss over all samples
+    if was_training:
+        _model.train()
+
     loss /= len(_dataset)
     accuracy = correct / total
     return loss, accuracy
+
+
+def test_subset_classes(_model: nn.Module, _dataset: DataLoader, target_classes: set[int]) -> tuple[float | None, float | None, int]:
+    """
+    Evaluate a model using only samples from the requested classes.
+    :param _model: The model to evaluate.
+    :param _dataset: The evaluation DataLoader.
+    :param target_classes: Class labels to include.
+    :return: Loss, accuracy, and evaluated sample count; loss and accuracy are None when no samples match.
+    """
+    if not target_classes:
+        return None, None, 0
+
+    criterion = nn.CrossEntropyLoss(reduction='sum')
+    correct = 0
+    total = 0
+    loss = 0.0
+    target_tensor = torch.tensor(sorted(target_classes), device=get_device())
+
+    _model = _model.to(get_device())
+    was_training = _model.training
+    _model.eval()
+    with torch.no_grad():
+        for _x, _y in _dataset:
+            inputs = _x.to(get_device())
+            labels = _y.to(get_device())
+            mask = torch.isin(labels, target_tensor)
+            if not mask.any():
+                continue
+            outputs = _model(inputs)[mask]
+            selected_labels = labels[mask]
+            loss += criterion(outputs, selected_labels).item()
+            correct += (outputs.argmax(dim=1) == selected_labels).sum().item()
+            total += selected_labels.size(0)
+
+    if was_training:
+        _model.train()
+
+    if total == 0:
+        return None, None, 0
+    return loss / total, correct / total, total
 
 
 def set_parameters(_model: nn.Module, parameters: OrderedDict, _strict=True) -> None:

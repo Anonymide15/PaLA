@@ -1,8 +1,5 @@
 """
 Description: This module defines the attributes of the concept drift.
-
-Author:  Anonymous
-Date: 29-10-2024
 Version: 1.0
 """
 import bisect
@@ -13,19 +10,24 @@ from typing import Dict, List
 import numpy as np
 import torch
 from scipy.ndimage import rotate
+import torchvision.transforms as transforms
 from torch.utils.data import Dataset
 
 import constants
 from data.utils import get_num_classes_from_dataset, get_random_labels, convert_dataset_to_loader
+from drift_concepts.drift_scenarios import transpose_drift_pattern, read_drift_pattern_from_csv
 from drift_concepts.utils import cluster_client_indices_by_drift_patterns, get_clients_indices_with_drift
 from federated_network.client import Client, get_client_by_id
+
+
+# TODO: restructure the Drift class to multiple handler and util files, for improved readability
 
 
 class Drift:
     def __init__(self, drifted_clients_fraction, drift_group_proportions, is_synchronous, is_random, async_drift_specs,
                  drift_mode, drift_start_round, drift_end_round, drift_step_rounds, num_client_instances, max_rotation,
                  class_pairs_to_swap, drift_pattern_id_map, drift_patterns_over_time, label_swap_percentage_steps,
-                 current_drift_step):
+                 current_drift_step, random_seed, rotation_class_id_map=None):
         # Number of clients to be applied with drifted data
         self.num_drifted_clients = int(drifted_clients_fraction * num_client_instances)
 
@@ -72,6 +74,11 @@ class Drift:
         # Maximum rotation angle for the drift created by rotations
         self.max_rotation = max_rotation
 
+        # Class lists rotated for each asynchronous drift operation ID.
+        self.rotation_class_id_map = rotation_class_id_map or {}
+        self.rotation_source_train_dataset = None
+        self.rotation_source_test_dataset = None
+
         # Classes to be swapped in the label-swapping drift method
         self.class_pairs_to_swap = class_pairs_to_swap
 
@@ -92,6 +99,7 @@ class Drift:
 
         # Current drift step (used internally during simulation)
         self.current_drift_step = current_drift_step
+        self.random_seed = random_seed
 
         # -----------------------
         # for asynchronous-clustering based drift patterns
@@ -124,13 +132,12 @@ class Drift:
         :return: List of Client objects with the rotated images in their datasets
         """
 
-        def apply_rotation(dataset, _rotation_angle: float, _fraction_rotated: float, seed: int = 42):
+        def apply_rotation(dataset, _rotation_angle: float, _fraction_rotated: float):
             """
             Apply rotation drift to a fraction of the images.
             :param dataset: Dataset to process
             :param _rotation_angle: Angle of rotation
             :param _fraction_rotated: Fraction of images to rotate
-            :param seed: Random seed for reproducibility
             :return: Drifted images and original labels
             """
             _images = dataset.data  # Access dataset images
@@ -141,7 +148,7 @@ class Drift:
             num_images_to_rotate = int(_fraction_rotated * num_images)
 
             # pick random subset of indices to rotate
-            rng = np.random.default_rng(seed)
+            rng = np.random.default_rng(self.random_seed)
             rotate_indices = rng.choice(num_images, size=num_images_to_rotate, replace=False)
 
             # apply rotation only to those indices
@@ -167,6 +174,13 @@ class Drift:
 
         # Check if there are drifted clients
         if self.drifted_client_indices:
+            # TODO: uncomment the following part and modify the implementation to apply drift to each drifted client separately
+            # for idx in self.drifted_client_indices:
+            #     # get client with matching client_id (drifted client)
+            #     client = get_client_by_id(clients, idx)
+            #     # Duplicate a copy of the client (not the reference)
+            #     drifted_client_copy = copy.deepcopy(client)
+
             # Identify the first drifted client to process the dataset and duplicate a copy (not the reference)
             first_drifted_client = copy.deepcopy(clients[self.drifted_client_indices[0]])
 
@@ -186,6 +200,63 @@ class Drift:
             for idx in self.drifted_client_indices:
                 clients[idx].local_trainset.dataset = first_drifted_client.local_trainset.dataset
                 clients[idx].testset.dataset = first_drifted_client.testset.dataset
+
+        return clients
+
+    def rotate_images_by_class_gradually(self, clients: List[Client]) -> List[Client]:
+        """Rotate configured classes for each asynchronous operation without compounding rounds.
+        :param clients: Client instances grouped by their current drift operation IDs.
+        :return: Clients whose affected train and test images are rotated.
+        """
+        if not self.rotation_class_id_map:
+            return clients
+
+        if self.rotation_source_train_dataset is None:
+            self.rotation_source_train_dataset = copy.deepcopy(clients[0].local_trainset.dataset)
+            self.rotation_source_test_dataset = copy.deepcopy(clients[0].testset.dataset)
+
+        progress = (self.current_round + 1 - self.drift_start_round) / max(
+            1, self.drift_end_round - self.drift_start_round)
+        rotation_angle = min(1.0, max(0.0, progress)) * self.max_rotation
+
+        def rotate_selected_classes(source_dataset, class_ids):
+            """Build a fresh transformed dataset from its unrotated source."""
+            transformed_dataset = copy.deepcopy(source_dataset)
+            original_data = source_dataset.data
+            transformed_data = copy.deepcopy(original_data)
+            targets = source_dataset.targets
+            target_values = targets.detach().cpu().numpy() if isinstance(targets, torch.Tensor) else np.asarray(targets)
+            selected_indices = np.flatnonzero(np.isin(target_values, class_ids))
+
+            for sample_index in selected_indices:
+                original_image = original_data[sample_index]
+                image_array = (original_image.detach().cpu().numpy() if isinstance(original_image, torch.Tensor)
+                               else np.asarray(original_image))
+                axes = (1, 2) if image_array.ndim == 3 and image_array.shape[0] in (1, 3) else (0, 1)
+                rotated_image = rotate(image_array, rotation_angle, axes=axes, reshape=False)
+                if isinstance(original_image, torch.Tensor):
+                    transformed_data[sample_index] = torch.as_tensor(
+                        rotated_image, dtype=original_image.dtype, device=original_image.device)
+                else:
+                    transformed_data[sample_index] = rotated_image.astype(image_array.dtype, copy=False)
+
+            transformed_dataset.data = transformed_data
+            return transformed_dataset
+
+        operation_clients = {}
+        for client in clients:
+            if client.drift_id in self.rotation_class_id_map:
+                operation_clients.setdefault(client.drift_id, []).append(client)
+
+        for operation_id, affected_clients in operation_clients.items():
+            class_ids = self.rotation_class_id_map.get(operation_id, ())
+            if not class_ids:
+                continue
+            train_dataset = rotate_selected_classes(self.rotation_source_train_dataset, class_ids)
+            test_dataset = rotate_selected_classes(self.rotation_source_test_dataset, class_ids)
+            for client in affected_clients:
+                client.local_trainset.dataset = train_dataset
+                client.testset.dataset = test_dataset
 
         return clients
 
@@ -228,6 +299,13 @@ class Drift:
 
         # Check if there are drifted clients
         if self.drifted_client_indices:
+            # TODO: uncomment the following part and modify the implementation to apply drift to each drifted client separately
+            # for idx in self.drifted_client_indices:
+            #     # get client with matching client_id (drifted client)
+            #     client = get_client_by_id(clients, idx)
+            #     # Duplicate a copy of the client (not the reference)
+            #     drifted_client_copy = copy.deepcopy(client)
+
             # Identify the first drifted client to process the dataset and duplicate a copy (not the reference)
             first_drifted_client = copy.deepcopy(clients[self.drifted_client_indices[0]])
 
@@ -289,6 +367,10 @@ class Drift:
             """
             # Shallow copy: cheap, copies only the object shell, not the tensors
             _aux_dataset = copy.copy(_dataset)
+
+            # # Make completely independent copies of the original images and labels and store it in new attributes
+            # _aux_dataset.data = copy.copy(_dataset.data)    # compatible with both Tensor and NumPy formats
+            # _aux_dataset.targets = _dataset.targets.clone() # performance optimum for tensor format
 
             # aux_images = _dataset.aux_data  # Access dataset images
             aux_labels = _aux_dataset.targets  # Access dataset labels
@@ -352,6 +434,7 @@ def modify_drifted_client_groups(drift: Drift, _round: int) -> None:
     :param _round: Current training round
     :return: None
     """
+    # TODO: This function is only desinged for 2 groups. Generalize for more than 2 groups
     if _round < drift.async_drift_specs['drift_split_round']:
         drift.drifted_client_indices = drift.async_drift_specs['drift_groups'][0]
     else:
@@ -360,12 +443,13 @@ def modify_drifted_client_groups(drift: Drift, _round: int) -> None:
             drift.drifted_client_indices = drift.async_drift_specs['drift_groups'][1]
 
 
-def drift_fn(num_client_instances: int, num_training_rounds: int, drift_specs: Dict) -> Drift:
+def drift_fn(num_client_instances: int, num_training_rounds: int, drift_specs: Dict, random_seed: int) -> Drift:
     """
     Create a drift object using the specifications given as inputs.
     :param num_client_instances: Total number of client instances in the federated network
     :param num_training_rounds: Total number of training rounds
     :param drift_specs: Dictionary containing the drift specifications
+    :param random_seed: Experiment seed selected by the entry point.
     :return: Drift object
     """
     # Drift start and end rounds
@@ -386,10 +470,13 @@ def drift_fn(num_client_instances: int, num_training_rounds: int, drift_specs: D
                  num_client_instances=num_client_instances,
                  max_rotation=drift_specs['max_rotation'],
                  class_pairs_to_swap=drift_specs['class_pairs_to_swap'],
+                 rotation_class_id_map=drift_specs.get(
+                     'rotation_class_id_map', {1: [1, 2, 3, 4], 2: [5, 7]}),
                  drift_pattern_id_map=drift_specs['drift_pattern_id_map'],
                  drift_patterns_over_time=drift_specs['drift_patterns_over_time'],
                  label_swap_percentage_steps=drift_specs['label_swap_percentage_steps'],
-                 current_drift_step=drift_specs['current_drift_step'])
+                 current_drift_step=drift_specs['current_drift_step'],
+                 random_seed=random_seed)
 
 
 def apply_drift(clients: List[Client], drift: Drift) -> List[Client]:
@@ -435,7 +522,7 @@ def apply_drift(clients: List[Client], drift: Drift) -> List[Client]:
 
     elif drift.drift_mode == constants.DriftMode.ROTATION_GRADUAL:
         # Gradual (angle) drift happens at every round
-        return drift.rotate_images_gradually(clients)
+        return drift.rotate_images_by_class_gradually(clients)
 
     elif drift.drift_mode == constants.DriftMode.ROTATION_STEP_INCREMENTAL:
         # Incremental (angle & samples) drift happens at the defined drift steps

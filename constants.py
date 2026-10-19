@@ -1,8 +1,5 @@
 """
 Description: This constants used in this project
-
-Author: Anonymous
-Date: 18-10-2024
 Version: 1.0
 """
 
@@ -28,6 +25,11 @@ class FileExtentions:
 # String related to miscellaneous messages
 class MiscMessages:
     ACCURACY = "accuracy"
+
+
+class TrainingHyperparameters:
+    CLIENT_LEARNING_RATE = 0.005
+    LOCAL_EPOCHS = 3
 
 
 # Names of the dataset
@@ -178,6 +180,17 @@ class Logs:
     SERVER_LVL_AVG_LOG = 'server_level_avg_log'
     SERVER_OVERALL_AVG_LOG = 'server_overall_avg_log'
     DRIFT_SPECS_LOG = 'drift_specs_log'
+    MODEL_DISTANCES_LOG = 'model_distances_log'
+    LAYER_DISTANCES_LOG = 'layer_distances_log'
+    EVALUATION_LOG = 'evaluation_log'
+    DOWNLOADED_GLOBAL_CLIENT_LOG = 'downloaded_global_client_log'
+    DRIFTED_CLASS_LOG = 'drifted_class_log'
+    DITTO_STATE_LOG = 'ditto_state_log'
+    DITTO_PERSONALIZED_CLIENT_LOG = 'ditto_personalized_client_log'
+    DITTO_PERSONALIZED_DRIFTED_CLASS_LOG = 'ditto_personalized_drifted_class_log'
+    DITTO_SELECTED_LAMBDA_LOG = 'ditto_selected_lambda_log'
+    FEDBABU_PERSONALIZED_CLIENT_LOG = 'fedbabu_personalized_client_log'
+    FAIRFEDDRIFT_STATE_LOG = 'fairfeddrift_state_log'
 
 
 # Drift recovery algorithms
@@ -190,8 +203,11 @@ class RecoveryAlgorithm:
     # Both client-side and server-side algorithms
     FEDAU = 'fedau'
     FLUID = 'fluid'
-    FEDEX = 'fedex' # fedex is the alias for PaLA: Partial Layer Aggregation
+    FEDEX = 'fedex'
     FEDRC = 'fedrc'  # Clustering-based
+    DITTO = 'ditto'  # Personalized federated learning
+    FAIRFEDDRIFT = 'fairfeddrift'  # Group-aware drift clustering
+    FEDBABU = 'fedbabu'  # Fixed-head body aggregation with post-training personalization
 
 
 # Types of models used in the project

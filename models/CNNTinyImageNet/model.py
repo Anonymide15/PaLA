@@ -1,9 +1,6 @@
 """
 Description: This file consists a simple CNN for image classification, for TinyImageNet-200 dataset.
 Input:  [B, 3, 64, 64]
-
-Author: Anonymous
-Date: 02-04-2026
 Version: 1.0
 """
 

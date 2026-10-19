@@ -4,9 +4,6 @@ Description: This module reads the drift scenarios defined by the .csv files in 
  scenarios is adopted by the implementation of FairFedDrfit [3]:
  [3]T. Salazar, J. Gama, H. Araújo, and P. H. Abreu, “Unveiling group-specific distributed concept drift: A fairness
  imperative in federated learning,” IEEE Access, vol. 12, pp. 1–18, 2024.
-
-Author:  Anonymous
-Date: 07-01-2026
 Version: 1.0
 """
 

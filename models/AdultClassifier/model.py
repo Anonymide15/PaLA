@@ -1,8 +1,5 @@
 """
 Description: This file consists a simple model for binary classification of ADULT data (tabular)
-
-Author: Anonymous
-Date: 28-04-2026
 Version: 1.0
 """
 
