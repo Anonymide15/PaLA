@@ -20,9 +20,13 @@ In the codebase, `FEDEX` is used as an internal alias for **PaLA**. Both refer t
 ├── log\_utils/                # Logging utilities
 ├── models/                   # Neural network model definitions
 ├── plot\_utils/               # Plotting and visualization utilities
-├── strategy/                 # Federated learning strategies, including PaLA
+├── strategy/                 # Federated learning strategies, including PaLA, FedAvg, Oracle
 ├── constants.py              # Global constants and configuration values
-├── main.py                   # Main experiment entry point
+├── main.py                   # Main experiment entry point. Includes mainly: (1)drift scenario design,
+|                                                                             (2)Federated network systems configuration parameters
+|                                                                             (3)Simulation parameters
+|                                                                             (4)Ablation experiments (commented)
+|
 ├── requirements.txt          # Python dependencies
 └── README.md
 ```
@@ -91,15 +95,28 @@ python main.py
 ### Output logs 
 Depending on the experiment configuration, logs and generated outputs may be written to the corresponding logging or output directories.
 
+#### Logging Directory
+Logs are stored in:
+```
+logs/
+```
+(The users can newly create/ edit or create sub-directories to fit the requirements in the code)
+
 #### Plotting and Analysis
 Plots are saved in:
 ```
 plots/
 ```
-Custom generation of plots is in notebooks located in:
+(The users can newly create/ edit or create sub-directories to fit the requirements in the code)
 
+#### Read logs
+The Jupyter notebook files for reading the logs and creating custom-generated plots are in notebooks located in:
 ```
 jupyter_notebooks/
 ```
+
+### Documentation and Code explanation
+Please refer to the comments, Doctrings, and explanations in the code base.
+
 ### License
 This repository is licensed under the Apache License 2.0. See the LICENSE file for details.
