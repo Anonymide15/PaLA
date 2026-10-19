@@ -113,7 +113,6 @@ def main():
         servers_have_test_data=False
     )
 
-
     # ######################################################
     # ##### Paper ICSOC 2026- performance experiments ######
     # ######################################################
@@ -147,10 +146,10 @@ def main():
         drift_recovery_parameters=drift_recovery_parameters,  # Drift recovery algorithm related parameters
     )
 
-    # Running the simulation
-    fed_net.run_simulation(
-        file_save_path='plots/swap/MNIST/saved_plots_fedavg/',
-        log_save_path='logs/swap/MNIST/saved_logs_fedavg/')
+    # # Running the simulation
+    # fed_net.run_simulation(
+    #     file_save_path='plots/swap/MNIST/saved_plots_fedavg/',
+    #     log_save_path='logs/swap/MNIST/saved_logs_fedavg/')
 
     # ######################## PaLA (Alias FedEx) ##################
     # Define drift recovery algorithm related parameters
@@ -226,14 +225,15 @@ def main():
     # Define drift recovery algorithm related parameters
     drift_recovery_parameters = dict(
         recovery_method=constants.RecoveryAlgorithm.FEDAVG,  # Aggregation method used during the drift period
-        base_aggregation_method=constants.RecoveryAlgorithm.FEDAVG,  # Aggregation algorithm used outside the drift period
-        fedau_alpha=0.9, # EMA weight (alpha) parameter for the FedAU algorithm
-        fedrc_cluster_count=3, # Number of clusters (K) for the FedRC algorithm
+        base_aggregation_method=constants.RecoveryAlgorithm.FEDAVG,
+        # Aggregation algorithm used outside the drift period
+        fedau_alpha=0.9,  # EMA weight (alpha) parameter for the FedAU algorithm
+        fedrc_cluster_count=3,  # Number of clusters (K) for the FedRC algorithm
         # Number of clusters (K) for the Oracle (multi-global-model-based) algorithm
         #   - drift_specifications['drift_group_proportions'][0] -> number of drift affected client groups
         #   - '+1' -> for the non-drift affected client group
         cluster_count=len(drift_specifications['drift_group_proportions'][0]) + 1,
-    fedex_alpha=0.9,  # EMA weight (alpha) parameter for the FedEx algorithm
+        fedex_alpha=0.9,  # EMA weight (alpha) parameter for the FedEx algorithm
     )
 
     # Create a federated network
@@ -243,18 +243,17 @@ def main():
         server_tree_layout=[1],
         num_training_rounds=50,  # Number of training rounds (in literature, over 50 rounds are trained.)
         dataset_name=constants.DatasetNames.F_MNIST,  # Name of the dataset
-          noniid_partitioning_strategy=constants.DatasetPartitionDistribution.DIRICHLET,
+        noniid_partitioning_strategy=constants.DatasetPartitionDistribution.DIRICHLET,
         drift_specs=drift_specifications,  # Drift specifications
         simulation_parameters=simulation_parameters,  # Parameters specifying the simulation scenarios
         client_select_fraction=1,  # Fraction of clients to be selected for each round
-        drift_recovery_parameters=drift_recovery_parameters, # Drift recovery algorithm related parameters
+        drift_recovery_parameters=drift_recovery_parameters,  # Drift recovery algorithm related parameters
     )
 
     # Running the simulation
     fed_net.run_simulation(
         file_save_path='plots/swap/F_MNIST/saved_plots_fedavg/',
         log_save_path='logs/swap/F_MNIST/saved_logs_fedavg/')
-
 
     # ################### PaLA (alias FedEx) ########################
     # Define drift recovery algorithm related parameters
@@ -294,14 +293,15 @@ def main():
     # Define drift recovery algorithm related parameters
     drift_recovery_parameters = dict(
         recovery_method=constants.RecoveryAlgorithm.ORACLE,  # Aggregation method used during the drift period
-        base_aggregation_method=constants.RecoveryAlgorithm.ORACLE,  # Aggregation algorithm used outside the drift period
-        fedau_alpha=0.9, # EMA weight (alpha) parameter for the FedAU algorithm
-        fedrc_cluster_count=3, # Number of clusters (K) for the FedRC algorithm
+        base_aggregation_method=constants.RecoveryAlgorithm.ORACLE,
+        # Aggregation algorithm used outside the drift period
+        fedau_alpha=0.9,  # EMA weight (alpha) parameter for the FedAU algorithm
+        fedrc_cluster_count=3,  # Number of clusters (K) for the FedRC algorithm
         # Number of clusters (K) for the Oracle (multi-global-model-based) algorithm
         #   - drift_specifications['drift_group_proportions'][0] -> number of drift affected client groups
         #   - '+1' -> for the non-drift affected client group
         cluster_count=len(drift_specifications['drift_group_proportions'][0]) + 1,
-    fedex_alpha=0.9,  # EMA weight (alpha) parameter for the FedEx algorithm
+        fedex_alpha=0.9,  # EMA weight (alpha) parameter for the FedEx algorithm
     )
 
     # Create a federated network
@@ -315,7 +315,7 @@ def main():
         drift_specs=drift_specifications,  # Drift specifications
         simulation_parameters=simulation_parameters,  # Parameters specifying the simulation scenarios
         client_select_fraction=1,  # Fraction of clients to be selected for each round
-        drift_recovery_parameters=drift_recovery_parameters, # Drift recovery algorithm related parameters
+        drift_recovery_parameters=drift_recovery_parameters,  # Drift recovery algorithm related parameters
     )
 
     # Running the simulation
