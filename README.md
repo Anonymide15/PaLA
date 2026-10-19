@@ -1,6 +1,6 @@
 ## PaLA: Partial Layer Aggregation for Client-Group Distributed Drift Adaptation
 
-This repository contains the implementation used for the experiments of \*\*Partial Layer Aggregation (PaLA)\*\*, a clustering-free federated learning strategy for adapting to client-group distributed concept drift.
+This repository contains the implementation used for the experiments of **Partial Layer Aggregation (PaLA)**, a clustering-free federated learning strategy for adapting to client-group distributed concept drift.
 
 PaLA shares transferable feature-extraction layers through federated aggregation while keeping client-specific classifier layers local. The goal is to reduce cross-group interference under drift while avoiding the overhead of maintaining multiple global models.
 
@@ -33,7 +33,7 @@ In the codebase, `FEDEX` is used as an internal alias for **PaLA**. Both refer t
 
 ### Dependencies
 
-The code has been tested with \*\*Python 3.10\*\* and \*\*Python 3.12\*\*.
+The code has been tested with **Python 3.10** and **Python 3.12**.
 
 Install the required Python dependencies with:
  ```bash
